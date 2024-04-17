@@ -1,16 +1,21 @@
-name: CI
-on:
-  push:
-    branches:
-      - 'dependabot/*/yarn-*'
-
+name: Dependabot auto-merge
+on: pull_request_target
+permissions:
+  pull-requests: write
+  contents: write
 jobs:
-  build:
+  dependabot:
     runs-on: ubuntu-latest
-
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     steps:
+      - name: Fetch metadata
+        uses: dependabot/fetch-metadata@v1.3.1
+
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.SECRET_PAT }}
 
       - name: Use node.js 12.x
         uses: actions/setup-node@v1
@@ -19,6 +24,8 @@ jobs:
 
       - name: fetch yarn repo
         run: ./fetch-yarn.sh
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
 
       - name: build library distribution
         run: ./build-lib-dist.sh
@@ -28,5 +35,9 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: merge branch to master
-        run: ./merge-to-master.sh
+      # Enable the automerge using a PAT so the merge commits trigger workflows
+      - name: Auto-merge
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
